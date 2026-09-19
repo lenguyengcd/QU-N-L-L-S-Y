@@ -513,20 +513,49 @@ fun RiceCellCard(
                                     }
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(1.dp)
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        modifier = Modifier.fillMaxWidth()
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Schedule,
-                                            contentDescription = null,
-                                            tint = Color.White.copy(alpha = 0.75f),
-                                            modifier = Modifier.size(8.dp)
-                                        )
-                                        Text(
-                                            text = entry.formattedDateTime,
-                                            fontSize = 7.5.sp,
-                                            color = Color.White.copy(alpha = 0.85f),
-                                            maxLines = 1
-                                        )
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(1.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Schedule,
+                                                contentDescription = null,
+                                                tint = Color.White.copy(alpha = 0.75f),
+                                                modifier = Modifier.size(8.dp)
+                                            )
+                                            Text(
+                                                text = entry.formattedDateTime,
+                                                fontSize = 7.5.sp,
+                                                color = Color.White.copy(alpha = 0.85f),
+                                                maxLines = 1
+                                            )
+                                        }
+                                        if (entry.weightKg != null && entry.weightKg > 0) {
+                                            Text(
+                                                text = "${entry.weightKg}kg",
+                                                fontSize = 7.5.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFFBAE6FD),
+                                                maxLines = 1
+                                            )
+                                        }
+                                    }
+                                    if (entry.totalPrice != null && entry.totalPrice!! > 0) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.End
+                                        ) {
+                                            Text(
+                                                text = "${java.text.NumberFormat.getInstance(java.util.Locale("vi", "VN")).format(entry.totalPrice)}đ",
+                                                fontSize = 7.5.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = Color(0xFFFDE047),
+                                                maxLines = 1
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -693,18 +722,56 @@ fun RiceCellEditDialog(
                         color = SlateTextPrimary
                     )
                     if (currentEntries.isNotEmpty()) {
-                        Surface(
-                            color = RiceGreenLight,
-                            shape = RoundedCornerShape(6.dp),
-                            border = BorderStroke(1.dp, Color(0xFFA5D6A7))
+                        val totalKg = currentEntries.sumOf { it.weightKg?.toLong() ?: 0L }
+                        val totalMoney = currentEntries.sumOf { it.totalPrice ?: 0L }
+
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalArrangement = Arrangement.Center
                         ) {
-                            Text(
-                                text = "Tổng SL: ${currentEntries.sumOf { it.quantity }}",
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 12.sp,
-                                color = RiceGreenDark,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                            )
+                            Surface(
+                                color = RiceGreenLight,
+                                shape = RoundedCornerShape(6.dp),
+                                border = BorderStroke(1.dp, Color(0xFFA5D6A7))
+                            ) {
+                                Text(
+                                    text = "SL: ${currentEntries.sumOf { it.quantity }}",
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 11.sp,
+                                    color = RiceGreenDark,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                            if (totalKg > 0) {
+                                Surface(
+                                    color = Color(0xFFEFF6FF),
+                                    shape = RoundedCornerShape(6.dp),
+                                    border = BorderStroke(1.dp, Color(0xFF93C5FD))
+                                ) {
+                                    Text(
+                                        text = "${java.text.NumberFormat.getInstance(java.util.Locale("vi", "VN")).format(totalKg)}kg",
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 11.sp,
+                                        color = Color(0xFF1D4ED8),
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                            if (totalMoney > 0) {
+                                Surface(
+                                    color = Color(0xFFFEF3C7),
+                                    shape = RoundedCornerShape(6.dp),
+                                    border = BorderStroke(1.dp, Color(0xFFF59E0B))
+                                ) {
+                                    Text(
+                                        text = "${java.text.NumberFormat.getInstance(java.util.Locale("vi", "VN")).format(totalMoney)}đ",
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 11.sp,
+                                        color = Color(0xFFB45309),
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -739,7 +806,7 @@ fun RiceCellEditDialog(
                                 textAlign = TextAlign.Center
                             )
                             Text(
-                                text = "Nhấn nút '+ Thêm dòng lúa mới' bên dưới để chọn Loại lúa, Chủ lúa và Số lượng.",
+                                text = "Nhấn nút '+ Thêm dòng lúa mới' bên dưới để chọn Loại lúa, Chủ lúa, Số lượng, Số ký và Giá lúa.",
                                 fontSize = 11.5.sp,
                                 color = SlateTextSecondary,
                                 textAlign = TextAlign.Center
@@ -777,205 +844,326 @@ fun RiceCellEditDialog(
                             }
                         }
 
-                        currentEntries.forEachIndexed { index, entry ->
+                        // NHÓM THEO LOẠI LÚA (GROUP BY THEO LOẠI LÚA)
+                        val groupedEntries = currentEntries.groupBy { it.variety }
+
+                        groupedEntries.forEach { (variety, entriesInGroup) ->
+                            val groupTotalQty = entriesInGroup.sumOf { it.quantity }
+                            val groupTotalKg = entriesInGroup.sumOf { it.weightKg?.toLong() ?: 0L }
+                            val groupTotalMoney = entriesInGroup.sumOf { it.totalPrice ?: 0L }
+
+                            // HEADER NHÓM LOẠI LÚA
                             Surface(
+                                color = Color(0xFFF1F5F9),
+                                shape = RoundedCornerShape(8.dp),
+                                border = BorderStroke(1.dp, Color(0xFFCBD5E1)),
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable {
-                                        entryToEdit = entry
-                                        showEntryFormDialog = true
-                                    },
-                                shape = RoundedCornerShape(8.dp),
-                                color = RiceGreenLight,
-                                border = BorderStroke(1.dp, Color(0xFFA5D6A7))
+                                    .padding(top = 4.dp)
                             ) {
-                                Column(
+                                Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Row(
-                                        modifier = Modifier.fillMaxWidth(),
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                                     ) {
-                                        // HÀNG HIỂN THỊ: LOẠI LÚA, CHỦ LÚA, SỐ LƯỢNG, GIÁ LÚA, SỐ KÝ, THỜI GIAN
-                                        FlowRow(
-                                            modifier = Modifier.weight(1f),
-                                            verticalArrangement = Arrangement.Center,
-                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        Surface(
+                                            color = RiceGreenPrimary,
+                                            shape = RoundedCornerShape(4.dp),
+                                            border = BorderStroke(1.dp, RiceGreenDark)
                                         ) {
-                                            // Index badge
-                                            Surface(
-                                                color = Color.White.copy(alpha = 0.95f),
-                                                shape = CircleShape
-                                            ) {
-                                                Text(
-                                                    text = "#${index + 1}",
-                                                    color = SlateTextSecondary,
-                                                    fontSize = 9.5.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                                                )
-                                            }
-
-                                            // 1. LOẠI LÚA
-                                            Surface(
-                                                color = RiceGreenPrimary,
-                                                shape = RoundedCornerShape(4.dp),
-                                                border = BorderStroke(1.5.dp, RiceGreenDark)
-                                            ) {
-                                                Text(
-                                                    text = entry.variety,
-                                                    color = PureWhite,
-                                                    fontSize = 11.5.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
-                                                )
-                                            }
-
-                                            // 2. CHỦ LÚA (nếu có)
-                                            if (!entry.owner.isNullOrBlank()) {
-                                                Surface(
-                                                    color = Color(0xFFFEF3C7),
-                                                    border = BorderStroke(1.5.dp, RiceGreenPrimary),
-                                                    shape = RoundedCornerShape(4.dp)
-                                                ) {
-                                                    Text(
-                                                        text = entry.owner,
-                                                        color = Color(0xFF92400E),
-                                                        fontSize = 10.5.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
-                                                        maxLines = 1,
-                                                        overflow = TextOverflow.Ellipsis
-                                                    )
-                                                }
-                                            }
-
-                                            // 3. SỐ LƯỢNG
                                             Text(
-                                                text = "SL:${entry.quantity}",
-                                                fontSize = 11.5.sp,
-                                                fontWeight = FontWeight.Black,
-                                                color = Color.Black
+                                                text = variety,
+                                                color = PureWhite,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                                             )
+                                        }
+                                        Text(
+                                            text = "(${entriesInGroup.size} dòng)",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = SlateTextSecondary
+                                        )
+                                    }
 
-                                            // 4. GIÁ LÚA (nếu có - kiểu int)
-                                            if (entry.price != null && entry.price > 0) {
+                                    FlowRow(
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        verticalArrangement = Arrangement.Center
+                                    ) {
+                                        Text(
+                                            text = "SL: $groupTotalQty",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = SlateTextPrimary
+                                        )
+                                        if (groupTotalKg > 0) {
+                                            Text(
+                                                text = "• ${java.text.NumberFormat.getInstance(java.util.Locale("vi", "VN")).format(groupTotalKg)}kg",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF1D4ED8)
+                                            )
+                                        }
+                                        if (groupTotalMoney > 0) {
+                                            Text(
+                                                text = "• ${java.text.NumberFormat.getInstance(java.util.Locale("vi", "VN")).format(groupTotalMoney)}đ",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                color = Color(0xFFB45309)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            // CÁC THẺ LÚA TRONG NHÓM (HIỂN THỊ 2 DÒNG)
+                            entriesInGroup.forEach { entry ->
+                                val globalIndex = currentEntries.indexOf(entry)
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            entryToEdit = entry
+                                            showEntryFormDialog = true
+                                        },
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = RiceGreenLight,
+                                    border = BorderStroke(1.dp, Color(0xFFA5D6A7))
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 10.dp, vertical = 7.dp),
+                                        verticalArrangement = Arrangement.spacedBy(5.dp)
+                                    ) {
+                                        // DÒNG 1: LOẠI LÚA, CHỦ LÚA, SỐ LƯỢNG, THỜI GIAN NHẬP
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            FlowRow(
+                                                modifier = Modifier.weight(1f),
+                                                verticalArrangement = Arrangement.Center,
+                                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                            ) {
+                                                // Số thứ tự
                                                 Surface(
-                                                    color = Color(0xFFDCFCE7),
-                                                    shape = RoundedCornerShape(4.dp),
-                                                    border = BorderStroke(1.dp, Color(0xFF86EFAC))
+                                                    color = Color.White.copy(alpha = 0.95f),
+                                                    shape = CircleShape
                                                 ) {
                                                     Text(
-                                                        text = "${java.text.NumberFormat.getInstance(java.util.Locale("vi", "VN")).format(entry.price)}đ",
-                                                        color = Color(0xFF166534),
-                                                        fontSize = 10.5.sp,
+                                                        text = "#${globalIndex + 1}",
+                                                        color = SlateTextSecondary,
+                                                        fontSize = 9.5.sp,
                                                         fontWeight = FontWeight.Bold,
                                                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                                                     )
                                                 }
-                                            }
 
-                                            // 5. SỐ KÝ LÚA (nếu có - kiểu int)
-                                            if (entry.weightKg != null && entry.weightKg > 0) {
+                                                // 1. LOẠI LÚA
                                                 Surface(
-                                                    color = Color(0xFFEFF6FF),
+                                                    color = RiceGreenPrimary,
                                                     shape = RoundedCornerShape(4.dp),
-                                                    border = BorderStroke(1.dp, Color(0xFF93C5FD))
+                                                    border = BorderStroke(1.dp, RiceGreenDark)
                                                 ) {
                                                     Text(
-                                                        text = "${java.text.NumberFormat.getInstance(java.util.Locale("vi", "VN")).format(entry.weightKg)}kg",
-                                                        color = Color(0xFF1D4ED8),
-                                                        fontSize = 10.5.sp,
+                                                        text = entry.variety,
+                                                        color = PureWhite,
+                                                        fontSize = 11.5.sp,
                                                         fontWeight = FontWeight.Bold,
-                                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp)
+                                                    )
+                                                }
+
+                                                // 2. CHỦ LÚA
+                                                if (!entry.owner.isNullOrBlank()) {
+                                                    Surface(
+                                                        color = Color(0xFFFEF3C7),
+                                                        border = BorderStroke(1.dp, RiceGreenPrimary),
+                                                        shape = RoundedCornerShape(4.dp)
+                                                    ) {
+                                                        Text(
+                                                            text = entry.owner,
+                                                            color = Color(0xFF92400E),
+                                                            fontSize = 11.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.5.dp),
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                    }
+                                                }
+
+                                                // 3. SỐ LƯỢNG
+                                                Surface(
+                                                    color = Color.White.copy(alpha = 0.85f),
+                                                    shape = RoundedCornerShape(4.dp),
+                                                    border = BorderStroke(1.dp, Color(0xFFCBD5E1))
+                                                ) {
+                                                    Text(
+                                                        text = "SL: ${entry.quantity}",
+                                                        fontSize = 11.5.sp,
+                                                        fontWeight = FontWeight.Black,
+                                                        color = Color.Black,
+                                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                                    )
+                                                }
+
+                                                // 4. THỜI GIAN NHẬP
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                                                    modifier = Modifier.align(Alignment.CenterVertically)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Schedule,
+                                                        contentDescription = "Thời gian",
+                                                        tint = Color(0xFF64748B),
+                                                        modifier = Modifier.size(11.dp)
+                                                    )
+                                                    Text(
+                                                        text = entry.formattedDateTime,
+                                                        fontSize = 10.5.sp,
+                                                        color = Color(0xFF475569),
+                                                        fontWeight = FontWeight.Medium,
+                                                        maxLines = 1
                                                     )
                                                 }
                                             }
 
-                                            // 6. THỜI GIAN
+                                            // Action buttons: Sửa & Xóa
                                             Row(
                                                 verticalAlignment = Alignment.CenterVertically,
                                                 horizontalArrangement = Arrangement.spacedBy(2.dp)
                                             ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Schedule,
-                                                    contentDescription = "Thời gian",
-                                                    tint = Color(0xFF64748B),
-                                                    modifier = Modifier.size(11.dp)
-                                                )
-                                                Text(
-                                                    text = entry.formattedDateTime,
-                                                    fontSize = 10.sp,
-                                                    color = Color(0xFF475569),
-                                                    fontWeight = FontWeight.Medium,
-                                                    maxLines = 1
-                                                )
+                                                IconButton(
+                                                    onClick = {
+                                                        entryToEdit = entry
+                                                        showEntryFormDialog = true
+                                                    },
+                                                    modifier = Modifier.size(28.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Edit,
+                                                        contentDescription = "Sửa dòng lúa",
+                                                        tint = RiceGreenDark,
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                }
+                                                IconButton(
+                                                    onClick = {
+                                                        currentEntries = currentEntries.filter { it.id != entry.id }
+                                                    },
+                                                    modifier = Modifier.size(28.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Delete,
+                                                        contentDescription = "Xóa dòng",
+                                                        tint = Color(0xFFEF4444),
+                                                        modifier = Modifier.size(16.dp)
+                                                    )
+                                                }
                                             }
                                         }
 
-                                        // Action buttons: Sửa & Xóa
+                                        // DÒNG 2: SỐ KÝ, GIÁ TIỀN, THÀNH TIỀN
                                         Row(
+                                            modifier = Modifier.fillMaxWidth(),
                                             verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(2.dp)
+                                            horizontalArrangement = Arrangement.SpaceBetween
                                         ) {
-                                            IconButton(
-                                                onClick = {
-                                                    entryToEdit = entry
-                                                    showEntryFormDialog = true
-                                                },
-                                                modifier = Modifier.size(28.dp)
+                                            FlowRow(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                verticalArrangement = Arrangement.Center,
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                                             ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Edit,
-                                                    contentDescription = "Sửa dòng lúa",
-                                                    tint = RiceGreenDark,
-                                                    modifier = Modifier.size(16.dp)
-                                                )
-                                            }
-                                            IconButton(
-                                                onClick = {
-                                                    currentEntries = currentEntries.filter { it.id != entry.id }
-                                                },
-                                                modifier = Modifier.size(28.dp)
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Delete,
-                                                    contentDescription = "Xóa dòng",
-                                                    tint = Color(0xFFEF4444),
-                                                    modifier = Modifier.size(16.dp)
-                                                )
+                                                // SỐ KÝ
+                                                if (entry.weightKg != null && entry.weightKg > 0) {
+                                                    Surface(
+                                                        color = Color(0xFFEFF6FF),
+                                                        shape = RoundedCornerShape(4.dp),
+                                                        border = BorderStroke(1.dp, Color(0xFF93C5FD))
+                                                    ) {
+                                                        Text(
+                                                            text = "Số ký: ${java.text.NumberFormat.getInstance(java.util.Locale("vi", "VN")).format(entry.weightKg)} kg",
+                                                            color = Color(0xFF1D4ED8),
+                                                            fontSize = 11.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                        )
+                                                    }
+                                                }
+
+                                                // GIÁ TIỀN
+                                                if (entry.price != null && entry.price > 0) {
+                                                    Surface(
+                                                        color = Color(0xFFDCFCE7),
+                                                        shape = RoundedCornerShape(4.dp),
+                                                        border = BorderStroke(1.dp, Color(0xFF86EFAC))
+                                                    ) {
+                                                        Text(
+                                                            text = "Giá: ${java.text.NumberFormat.getInstance(java.util.Locale("vi", "VN")).format(entry.price)} đ/kg",
+                                                            color = Color(0xFF166534),
+                                                            fontSize = 11.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                        )
+                                                    }
+                                                }
+
+                                                // THÀNH TIỀN
+                                                if (entry.totalPrice != null && entry.totalPrice!! > 0) {
+                                                    Surface(
+                                                        color = Color(0xFFFEF3C7),
+                                                        shape = RoundedCornerShape(4.dp),
+                                                        border = BorderStroke(1.dp, Color(0xFFF59E0B))
+                                                    ) {
+                                                        Text(
+                                                            text = "Thành tiền: ${java.text.NumberFormat.getInstance(java.util.Locale("vi", "VN")).format(entry.totalPrice)} đ",
+                                                            color = Color(0xFFB45309),
+                                                            fontSize = 11.sp,
+                                                            fontWeight = FontWeight.ExtraBold,
+                                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                        )
+                                                    }
+                                                }
                                             }
                                         }
-                                    }
 
-                                    // At "Nền": allow transferring entry to other cells
-                                    if (cell.label == "Nền" && onTransferEntry != null) {
-                                        Spacer(modifier = Modifier.height(3.dp))
-                                        Button(
-                                            onClick = {
-                                                transferTargetEntry = entry
-                                            },
-                                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
-                                            shape = RoundedCornerShape(6.dp),
-                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                                            modifier = Modifier.height(26.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                                contentDescription = null,
-                                                tint = PureWhite,
-                                                modifier = Modifier.size(12.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Text(
-                                                text = "Chuyển sang ô khác (1 - 18)",
-                                                fontSize = 10.5.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = PureWhite
-                                            )
+                                        // At "Nền": allow transferring entry to other cells
+                                        if (cell.label == "Nền" && onTransferEntry != null) {
+                                            Spacer(modifier = Modifier.height(3.dp))
+                                            Button(
+                                                onClick = {
+                                                    transferTargetEntry = entry
+                                                },
+                                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
+                                                shape = RoundedCornerShape(6.dp),
+                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                                                modifier = Modifier.height(26.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                                    contentDescription = null,
+                                                    tint = PureWhite,
+                                                    modifier = Modifier.size(12.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text(
+                                                    text = "Chuyển sang ô khác (1 - 18)",
+                                                    fontSize = 10.5.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = PureWhite
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -1072,12 +1260,14 @@ fun RiceCellEditDialog(
                 showEntryFormDialog = false
                 entryToEdit = null
             },
-            onSave = { variety, owner, quantity ->
+            onSave = { variety, owner, quantity, weightKg, price ->
                 if (entryToEdit == null) {
                     val newLine = RiceEntry(
                         variety = variety,
                         quantity = quantity,
-                        owner = owner
+                        owner = owner,
+                        weightKg = weightKg,
+                        price = price
                     )
                     currentEntries = currentEntries + newLine
                 } else {
@@ -1085,7 +1275,9 @@ fun RiceCellEditDialog(
                     val updated = entryToEdit!!.copy(
                         variety = variety,
                         quantity = quantity,
-                        owner = owner
+                        owner = owner,
+                        weightKg = weightKg,
+                        price = price
                     )
                     currentEntries = currentEntries.map { if (it.id == targetId) updated else it }
                 }
@@ -1115,13 +1307,15 @@ fun RiceCellEditDialog(
  * - Loại lúa (ST, LL, NH, T8, 49, 54, HC)
  * - Chủ lúa (BẮT BUỘC)
  * - Số lượng (kiểu int) có viền xanh lá và bàn phím tự ẩn khi chạm ngoài
+ * - Số ký (kiểu int, kg)
+ * - Giá lúa (kiểu int, VNĐ)
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun RiceEntryFormDialog(
     entryToEdit: RiceEntry? = null,
     onDismiss: () -> Unit,
-    onSave: (variety: String, owner: String, quantity: Int) -> Unit
+    onSave: (variety: String, owner: String, quantity: Int, weightKg: Int?, price: Int?) -> Unit
 ) {
     var selectedVariety by remember {
         mutableStateOf(entryToEdit?.variety ?: AVAILABLE_RICE_VARIETIES.first())
@@ -1132,6 +1326,12 @@ fun RiceEntryFormDialog(
     }
     var quantityText by remember {
         mutableStateOf((entryToEdit?.quantity ?: 10).toString())
+    }
+    var weightKgText by remember {
+        mutableStateOf(entryToEdit?.weightKg?.toString() ?: "")
+    }
+    var priceText by remember {
+        mutableStateOf(entryToEdit?.price?.toString() ?: "")
     }
     var ownerError by remember { mutableStateOf(false) }
     var isInputError by remember { mutableStateOf(false) }
@@ -1494,6 +1694,329 @@ fun RiceEntryFormDialog(
                         }
                     }
                 }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // SECTION 3: NHẬP SỐ KÝ (Bọc viền xanh dương)
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    color = Color(0xFFF8FAFC),
+                    border = BorderStroke(1.5.dp, Color(0xFF3B82F6))
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(10.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(Color(0xFFDBEAFE)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Scale,
+                                        contentDescription = "Biểu tượng số ký",
+                                        tint = Color(0xFF1D4ED8),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Số ký (kg):",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.5.sp,
+                                    color = Color(0xFF1E40AF)
+                                )
+                            }
+                            if (weightKgText.isNotBlank()) {
+                                val wVal = weightKgText.toIntOrNull()
+                                if (wVal != null && wVal > 0) {
+                                    Surface(
+                                        color = Color(0xFFDBEAFE),
+                                        shape = RoundedCornerShape(4.dp)
+                                    ) {
+                                        Text(
+                                            text = "${java.text.NumberFormat.getInstance(java.util.Locale("vi", "VN")).format(wVal)} kg",
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 11.5.sp,
+                                            color = Color(0xFF1E40AF),
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        OutlinedTextField(
+                            value = weightKgText,
+                            onValueChange = { input ->
+                                weightKgText = input.filter { it.isDigit() }
+                            },
+                            placeholder = {
+                                Text("Nhập số ký (ví dụ: 1200)", fontSize = 13.sp, color = SlateTextSecondary)
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Scale,
+                                    contentDescription = "Số ký lúa",
+                                    tint = Color(0xFF2563EB)
+                                )
+                            },
+                            trailingIcon = {
+                                if (weightKgText.isNotEmpty()) {
+                                    IconButton(
+                                        onClick = { weightKgText = "" },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = "Xóa số ký",
+                                            tint = SlateTextSecondary,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                            },
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Number,
+                                imeAction = ImeAction.Next
+                            ),
+                            singleLine = true,
+                            textStyle = LocalTextStyle.current.copy(
+                                color = Color.Black,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("weight_kg_input"),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.Black,
+                                unfocusedTextColor = Color.Black,
+                                cursorColor = Color.Black,
+                                focusedBorderColor = Color(0xFF1D4ED8),
+                                unfocusedBorderColor = Color(0xFF3B82F6),
+                                focusedLabelColor = Color(0xFF1D4ED8),
+                                focusedContainerColor = PureWhite,
+                                unfocusedContainerColor = PureWhite
+                            )
+                        )
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        // Nút chỉnh số ký nhanh: +50, +100, +500, +1000
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            listOf(50, 100, 500, 1000).forEach { delta ->
+                                OutlinedButton(
+                                    onClick = {
+                                        keyboardController?.hide()
+                                        focusManager.clearFocus()
+                                        val current = weightKgText.toIntOrNull() ?: 0
+                                        val newVal = (current + delta).coerceAtLeast(0)
+                                        weightKgText = newVal.toString()
+                                    },
+                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(30.dp),
+                                    shape = RoundedCornerShape(6.dp),
+                                    border = BorderStroke(1.dp, Color(0xFF3B82F6).copy(alpha = 0.5f)),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        containerColor = PureWhite
+                                    )
+                                ) {
+                                    Text(
+                                        text = "+$delta",
+                                        fontSize = 10.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF1D4ED8)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // SECTION 4: NHẬP GIÁ LÚA (Bọc viền xanh lục/ngọc)
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    color = Color(0xFFF9FCF9),
+                    border = BorderStroke(1.5.dp, Color(0xFF059669))
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(10.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(Color(0xFFD1FAE5)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Payments,
+                                        contentDescription = "Biểu tượng giá lúa",
+                                        tint = Color(0xFF047857),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Giá lúa (VNĐ):",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.5.sp,
+                                    color = Color(0xFF065F46)
+                                )
+                            }
+                            if (priceText.isNotBlank()) {
+                                val pVal = priceText.toIntOrNull()
+                                if (pVal != null && pVal > 0) {
+                                    Surface(
+                                        color = Color(0xFFD1FAE5),
+                                        shape = RoundedCornerShape(4.dp)
+                                    ) {
+                                        Text(
+                                            text = "${java.text.NumberFormat.getInstance(java.util.Locale("vi", "VN")).format(pVal)} đ",
+                                            fontWeight = FontWeight.ExtraBold,
+                                            fontSize = 11.5.sp,
+                                            color = Color(0xFF065F46),
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        OutlinedTextField(
+                            value = priceText,
+                            onValueChange = { input ->
+                                priceText = input.filter { it.isDigit() }
+                            },
+                            placeholder = {
+                                Text("Nhập giá lúa (ví dụ: 8200)", fontSize = 13.sp, color = SlateTextSecondary)
+                            },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Payments,
+                                    contentDescription = "Giá lúa",
+                                    tint = Color(0xFF059669)
+                                )
+                            },
+                            trailingIcon = {
+                                if (priceText.isNotEmpty()) {
+                                    IconButton(
+                                        onClick = { priceText = "" },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = "Xóa giá",
+                                            tint = SlateTextSecondary,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                            },
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Number,
+                                imeAction = ImeAction.Done
+                            ),
+                            keyboardActions = KeyboardActions(
+                                onDone = {
+                                    keyboardController?.hide()
+                                    focusManager.clearFocus()
+                                }
+                            ),
+                            singleLine = true,
+                            textStyle = LocalTextStyle.current.copy(
+                                color = Color.Black,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("price_input"),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.Black,
+                                unfocusedTextColor = Color.Black,
+                                cursorColor = Color.Black,
+                                focusedBorderColor = Color(0xFF047857),
+                                unfocusedBorderColor = Color(0xFF059669),
+                                focusedLabelColor = Color(0xFF047857),
+                                focusedContainerColor = PureWhite,
+                                unfocusedContainerColor = PureWhite
+                            )
+                        )
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        // Nút chọn giá nhanh phổ biến: 7.500, 8.000, 8.500, 9.000
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            listOf(7500, 8000, 8500, 9000).forEach { presetPrice ->
+                                OutlinedButton(
+                                    onClick = {
+                                        keyboardController?.hide()
+                                        focusManager.clearFocus()
+                                        priceText = presetPrice.toString()
+                                    },
+                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(30.dp),
+                                    shape = RoundedCornerShape(6.dp),
+                                    border = BorderStroke(
+                                        1.dp,
+                                        if (priceText == presetPrice.toString()) Color(0xFF047857) else Color(0xFF059669).copy(alpha = 0.5f)
+                                    ),
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        containerColor = if (priceText == presetPrice.toString()) Color(0xFFD1FAE5) else PureWhite
+                                    )
+                                ) {
+                                    Text(
+                                        text = "${presetPrice / 1000}k${if (presetPrice % 1000 != 0) (presetPrice % 1000) / 100 else ""}",
+                                        fontSize = 10.5.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF065F46)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
@@ -1510,7 +2033,9 @@ fun RiceEntryFormDialog(
                         isInputError = true
                         return@Button
                     }
-                    onSave(selectedVariety, selectedOwner, qty)
+                    val weightKg = weightKgText.toIntOrNull()
+                    val price = priceText.toIntOrNull()
+                    onSave(selectedVariety, selectedOwner, qty, weightKg, price)
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = RiceGreenPrimary),
                 shape = RoundedCornerShape(8.dp),
@@ -1538,6 +2063,7 @@ fun RiceEntryFormDialog(
     )
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TransferEntryDialog(
     entry: RiceEntry,
@@ -1617,10 +2143,10 @@ fun TransferEntryDialog(
                             fontWeight = FontWeight.SemiBold,
                             color = SlateTextSecondary
                         )
-                        // 1 HÀNG DUY NHẤT: LOẠI LÚA, CHỦ LÚA, SỐ LƯỢNG, THỜI GIAN
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        // DÒNG 1: LOẠI LÚA, CHỦ LÚA, SỐ LƯỢNG, THỜI GIAN
+                        FlowRow(
+                            verticalArrangement = Arrangement.Center,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Surface(
@@ -1651,12 +2177,19 @@ fun TransferEntryDialog(
                                     )
                                 }
                             }
-                            Text(
-                                text = "SL: ${entry.quantity}",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Black,
-                                color = Color.Black
-                            )
+                            Surface(
+                                color = Color.White,
+                                shape = RoundedCornerShape(4.dp),
+                                border = BorderStroke(1.dp, Color(0xFFCBD5E1))
+                            ) {
+                                Text(
+                                    text = "SL: ${entry.quantity}",
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = Color.Black,
+                                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                                )
+                            }
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(2.dp)
@@ -1673,6 +2206,59 @@ fun TransferEntryDialog(
                                     color = SlateTextSecondary,
                                     fontWeight = FontWeight.Medium
                                 )
+                            }
+                        }
+
+                        // DÒNG 2: SỐ KÝ, GIÁ TIỀN, THÀNH TIỀN
+                        FlowRow(
+                            verticalArrangement = Arrangement.Center,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            if (entry.weightKg != null && entry.weightKg > 0) {
+                                Surface(
+                                    color = Color(0xFFEFF6FF),
+                                    shape = RoundedCornerShape(4.dp),
+                                    border = BorderStroke(1.dp, Color(0xFF93C5FD))
+                                ) {
+                                    Text(
+                                        text = "Số ký: ${java.text.NumberFormat.getInstance(java.util.Locale("vi", "VN")).format(entry.weightKg)} kg",
+                                        color = Color(0xFF1D4ED8),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                            if (entry.price != null && entry.price > 0) {
+                                Surface(
+                                    color = Color(0xFFDCFCE7),
+                                    shape = RoundedCornerShape(4.dp),
+                                    border = BorderStroke(1.dp, Color(0xFF86EFAC))
+                                ) {
+                                    Text(
+                                        text = "Giá: ${java.text.NumberFormat.getInstance(java.util.Locale("vi", "VN")).format(entry.price)} đ/kg",
+                                        color = Color(0xFF166534),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                            if (entry.totalPrice != null && entry.totalPrice!! > 0) {
+                                Surface(
+                                    color = Color(0xFFFEF3C7),
+                                    shape = RoundedCornerShape(4.dp),
+                                    border = BorderStroke(1.dp, Color(0xFFF59E0B))
+                                ) {
+                                    Text(
+                                        text = "Thành tiền: ${java.text.NumberFormat.getInstance(java.util.Locale("vi", "VN")).format(entry.totalPrice)} đ",
+                                        color = Color(0xFFB45309),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
                             }
                         }
                     }

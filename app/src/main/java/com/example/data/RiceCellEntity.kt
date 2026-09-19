@@ -23,6 +23,14 @@ data class RiceEntry(
     val price: Int? = null,
     val weightKg: Int? = null
 ) {
+    /**
+     * Thành tiền = Số ký * Giá tiền (Long để tránh tràn số)
+     */
+    val totalPrice: Long?
+        get() = if (weightKg != null && price != null && weightKg > 0 && price > 0) {
+            weightKg.toLong() * price.toLong()
+        } else null
+
     val formattedDateTime: String
         get() = SimpleDateFormat("dd/MM HH:mm", Locale.getDefault()).format(Date(timestamp))
 

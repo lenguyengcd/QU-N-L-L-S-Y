@@ -18,4 +18,16 @@ class ExampleRobolectricTest {
     val appName = context.getString(R.string.app_name)
     assertEquals("Ô Lúa", appName)
   }
+
+  @Test
+  fun `test rice entry total price calculation`() {
+    val entry = com.example.data.RiceEntry(
+      variety = "ST25",
+      quantity = 10,
+      owner = "ANHBA",
+      weightKg = 1200,
+      price = 8500
+    )
+    assertEquals(10200000L, entry.totalPrice)
+  }
 }

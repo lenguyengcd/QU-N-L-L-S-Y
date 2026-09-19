@@ -1,11 +1,7 @@
 package com.example
 
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.padding
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
-import androidx.compose.ui.unit.dp
 import com.example.data.RiceCellEntity
 import com.example.data.RiceEntry
 import com.example.ui.RiceCellCard
@@ -28,40 +24,25 @@ class GreetingScreenshotTest {
 
   @Test
   fun greeting_screenshot() {
+    val sampleCell = RiceCellEntity(
+        id = 1,
+        label = "1",
+        entries = listOf(
+            RiceEntry(
+                variety = "ST",
+                quantity = 15,
+                owner = "PHUONGTT",
+                weightKg = 1200,
+                price = 8500
+            )
+        )
+    )
     composeTestRule.setContent {
       MyApplicationTheme {
-        Column(modifier = Modifier.padding(16.dp)) {
-          // White unselected cell
-          RiceCellCard(
-            cell = RiceCellEntity(id = 1, label = "1", entries = emptyList()),
-            onClick = {}
-          )
-          // Green filled cell with multiple varieties
-          RiceCellCard(
-            cell = RiceCellEntity(
-              id = 2,
-              label = "2",
-              entries = listOf(
-                RiceEntry("ST", 150),
-                RiceEntry("LL", 50)
-              )
-            ),
-            onClick = {}
-          )
-          // Nền cell
-          RiceCellCard(
-            cell = RiceCellEntity(
-              id = 19,
-              label = "Nền",
-              entries = listOf(RiceEntry("NH", 80))
-            ),
-            onClick = {}
-          )
-        }
+        RiceCellCard(cell = sampleCell, onClick = {})
       }
     }
 
     composeTestRule.onRoot().captureRoboImage(filePath = "src/test/screenshots/greeting.png")
   }
 }
-
