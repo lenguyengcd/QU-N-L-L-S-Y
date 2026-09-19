@@ -49,6 +49,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Grass
+import androidx.compose.material.icons.filled.KeyboardHide
 import androidx.compose.material.icons.filled.Numbers
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.PlaylistAdd
@@ -1375,12 +1376,11 @@ fun RiceEntryFormDialog(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) {
-                        keyboardController?.hide()
-                        focusManager.clearFocus()
+                    .pointerInput(Unit) {
+                        detectTapGestures(onTap = {
+                            keyboardController?.hide()
+                            focusManager.clearFocus()
+                        })
                     },
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -1408,15 +1408,30 @@ fun RiceEntryFormDialog(
                         color = SlateTextPrimary
                     )
                 }
-                IconButton(
-                    onClick = safeDismiss,
-                    modifier = Modifier.size(28.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Đóng",
-                        tint = SlateTextSecondary
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(
+                        onClick = {
+                            keyboardController?.hide()
+                            focusManager.clearFocus()
+                        },
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.KeyboardHide,
+                            contentDescription = "Ẩn bàn phím",
+                            tint = RiceGreenDark
+                        )
+                    }
+                    IconButton(
+                        onClick = safeDismiss,
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Đóng",
+                            tint = SlateTextSecondary
+                        )
+                    }
                 }
             }
         },
@@ -1425,12 +1440,11 @@ fun RiceEntryFormDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .verticalScroll(scrollState)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) {
-                        keyboardController?.hide()
-                        focusManager.clearFocus()
+                    .pointerInput(Unit) {
+                        detectTapGestures(onTap = {
+                            keyboardController?.hide()
+                            focusManager.clearFocus()
+                        })
                     }
                     .padding(vertical = 4.dp)
             ) {
@@ -1623,6 +1637,37 @@ fun RiceEntryFormDialog(
                                     tint = if (isInputError) MaterialTheme.colorScheme.error else RiceGreenPrimary
                                 )
                             },
+                            trailingIcon = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (quantityText.isNotEmpty()) {
+                                        IconButton(
+                                            onClick = { quantityText = "" },
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Close,
+                                                contentDescription = "Xóa số lượng",
+                                                tint = SlateTextSecondary,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
+                                    IconButton(
+                                        onClick = {
+                                            keyboardController?.hide()
+                                            focusManager.clearFocus()
+                                        },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = "Ẩn bàn phím",
+                                            tint = RiceGreenPrimary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                            },
                             keyboardOptions = KeyboardOptions(
                                 keyboardType = KeyboardType.Number,
                                 imeAction = ImeAction.Done
@@ -1774,23 +1819,45 @@ fun RiceEntryFormDialog(
                                 )
                             },
                             trailingIcon = {
-                                if (weightKgText.isNotEmpty()) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (weightKgText.isNotEmpty()) {
+                                        IconButton(
+                                            onClick = { weightKgText = "" },
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Close,
+                                                contentDescription = "Xóa số ký",
+                                                tint = SlateTextSecondary,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
                                     IconButton(
-                                        onClick = { weightKgText = "" },
+                                        onClick = {
+                                            keyboardController?.hide()
+                                            focusManager.clearFocus()
+                                        },
                                         modifier = Modifier.size(24.dp)
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Default.Close,
-                                            contentDescription = "Xóa số ký",
-                                            tint = SlateTextSecondary,
-                                            modifier = Modifier.size(16.dp)
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = "Ẩn bàn phím",
+                                            tint = Color(0xFF2563EB),
+                                            modifier = Modifier.size(18.dp)
                                         )
                                     }
                                 }
                             },
                             keyboardOptions = KeyboardOptions(
                                 keyboardType = KeyboardType.Number,
-                                imeAction = ImeAction.Next
+                                imeAction = ImeAction.Done
+                            ),
+                            keyboardActions = KeyboardActions(
+                                onDone = {
+                                    keyboardController?.hide()
+                                    focusManager.clearFocus()
+                                }
                             ),
                             singleLine = true,
                             textStyle = LocalTextStyle.current.copy(
@@ -1932,16 +1999,32 @@ fun RiceEntryFormDialog(
                                 )
                             },
                             trailingIcon = {
-                                if (priceText.isNotEmpty()) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (priceText.isNotEmpty()) {
+                                        IconButton(
+                                            onClick = { priceText = "" },
+                                            modifier = Modifier.size(24.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Close,
+                                                contentDescription = "Xóa giá",
+                                                tint = SlateTextSecondary,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
                                     IconButton(
-                                        onClick = { priceText = "" },
+                                        onClick = {
+                                            keyboardController?.hide()
+                                            focusManager.clearFocus()
+                                        },
                                         modifier = Modifier.size(24.dp)
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Default.Close,
-                                            contentDescription = "Xóa giá",
-                                            tint = SlateTextSecondary,
-                                            modifier = Modifier.size(16.dp)
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = "Ẩn bàn phím",
+                                            tint = Color(0xFF059669),
+                                            modifier = Modifier.size(18.dp)
                                         )
                                     }
                                 }
