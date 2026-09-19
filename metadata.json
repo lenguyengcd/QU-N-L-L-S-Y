@@ -1,0 +1,7 @@
+{
+  "name": "Ô Lúa",
+  "description": "Ứng dụng quản lý 19 ô hiển thị thông tin loại lúa và số lượng với trực quan màu sắc",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
