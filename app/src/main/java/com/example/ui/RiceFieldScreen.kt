@@ -1,10 +1,15 @@
 package com.example.ui
 
+import android.content.Context
+import android.view.inputmethod.InputMethodManager
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.rememberScrollState
@@ -84,10 +89,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -127,6 +143,8 @@ fun RiceFieldScreen(
     val filledCellsCount = cells.count { it.hasRice }
     val emptyCellsCount = totalCells - filledCellsCount
     val totalQuantity = cells.sumOf { it.totalQuantity }
+    val totalWeightKg = cells.sumOf { c -> c.entries.sumOf { (it.weightKg ?: 0).toLong() } }
+    val totalMoney = cells.sumOf { c -> c.entries.sumOf { it.totalPrice ?: 0L } }
 
     val statusBarPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val navBarPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
@@ -145,7 +163,9 @@ fun RiceFieldScreen(
                 totalCount = totalCells,
                 filledCount = filledCellsCount,
                 emptyCount = emptyCellsCount,
-                totalQuantity = totalQuantity
+                totalQuantity = totalQuantity,
+                totalWeightKg = totalWeightKg,
+                totalMoney = totalMoney
             )
 
             // 19 Cells Grid
@@ -213,12 +233,15 @@ fun RiceFieldScreen(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun HeaderSection(
     totalCount: Int,
     filledCount: Int,
     emptyCount: Int,
-    totalQuantity: Int
+    totalQuantity: Int,
+    totalWeightKg: Long = 0L,
+    totalMoney: Long = 0L
 ) {
     Card(
         modifier = Modifier
@@ -296,25 +319,90 @@ private fun HeaderSection(
             }
 
             if (totalQuantity > 0) {
-                Spacer(modifier = Modifier.height(6.dp))
-                Row(
+                Spacer(modifier = Modifier.height(8.dp))
+                FlowRow(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Tag,
-                        contentDescription = null,
-                        tint = RiceAmberAccent,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "Tổng số lượng tất cả ô: $totalQuantity",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = SlateTextSecondary
-                    )
+                    Surface(
+                        color = Color(0xFFFEF3C7),
+                        shape = RoundedCornerShape(6.dp),
+                        border = BorderStroke(1.dp, Color(0xFFFDE68A))
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Tag,
+                                contentDescription = null,
+                                tint = Color(0xFFB45309),
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Tổng SL: $totalQuantity",
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF92400E)
+                            )
+                        }
+                    }
+
+                    if (totalWeightKg > 0) {
+                        Surface(
+                            color = Color(0xFFEFF6FF),
+                            shape = RoundedCornerShape(6.dp),
+                            border = BorderStroke(1.dp, Color(0xFFBFDBFE))
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Scale,
+                                    contentDescription = null,
+                                    tint = Color(0xFF1D4ED8),
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Số ký: ${java.text.NumberFormat.getInstance(java.util.Locale("vi", "VN")).format(totalWeightKg)} kg",
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF1E40AF)
+                                )
+                            }
+                        }
+                    }
+
+                    if (totalMoney > 0) {
+                        Surface(
+                            color = Color(0xFFECFDF5),
+                            shape = RoundedCornerShape(6.dp),
+                            border = BorderStroke(1.dp, Color(0xFFA7F3D0))
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Payments,
+                                    contentDescription = null,
+                                    tint = Color(0xFF047857),
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Tiền: ${java.text.NumberFormat.getInstance(java.util.Locale("vi", "VN")).format(totalMoney)} đ",
+                                    fontSize = 11.5.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color(0xFF065F46)
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -445,6 +533,24 @@ fun RiceCellCard(
                                 fontSize = 11.5.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFFFFE082)
+                            )
+                            if (single.weightKg != null && single.weightKg > 0) {
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "•${single.weightKg}kg",
+                                    fontSize = 9.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFBAE6FD)
+                                )
+                            }
+                        }
+                        if (single.price != null && single.price > 0) {
+                            Text(
+                                text = "${java.text.NumberFormat.getInstance(java.util.Locale("vi", "VN")).format(single.price)}đ/kg",
+                                fontSize = 8.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFFD1FAE5),
+                                maxLines = 1
                             )
                         }
                         // Date/time added
@@ -632,9 +738,10 @@ fun RiceCellEditDialog(
     var entryToEdit by remember { mutableStateOf<RiceEntry?>(null) }
     var transferTargetEntry by remember { mutableStateOf<RiceEntry?>(null) }
 
-    val scrollState = rememberScrollState()
+    var dismissKeyboardRef by remember { mutableStateOf<(() -> Unit)?>(null) }
 
     val safeDismiss = {
+        dismissKeyboardRef?.invoke()
         onDismiss()
     }
 
@@ -705,9 +812,49 @@ fun RiceCellEditDialog(
             }
         },
         text = {
+            val dialogFocusManager = LocalFocusManager.current
+            val dialogKeyboardController = LocalSoftwareKeyboardController.current
+            val dialogView = LocalView.current
+            val context = LocalContext.current
+            val imm = remember { context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager }
+            val scrollState = rememberScrollState()
+
+            val hideKeyboardAndClearFocus: () -> Unit = {
+                dialogFocusManager.clearFocus(force = true)
+                dialogKeyboardController?.hide()
+                try {
+                    imm?.hideSoftInputFromWindow(dialogView.windowToken, 0)
+                } catch (_: Exception) {}
+            }
+
+            LaunchedEffect(Unit) {
+                dismissKeyboardRef = hideKeyboardAndClearFocus
+            }
+
+            LaunchedEffect(scrollState.isScrollInProgress, scrollState.value) {
+                if (scrollState.isScrollInProgress) {
+                    hideKeyboardAndClearFocus()
+                }
+            }
+
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .pointerInput(Unit) {
+                        awaitEachGesture {
+                            awaitFirstDown(pass = PointerEventPass.Initial, requireUnconsumed = false)
+                            do {
+                                val event = awaitPointerEvent(pass = PointerEventPass.Initial)
+                                val moved = event.changes.any { change ->
+                                    val diff = change.position - change.previousPosition
+                                    kotlin.math.abs(diff.y) > 0.5f || kotlin.math.abs(diff.x) > 0.5f
+                                }
+                                if (moved) {
+                                    hideKeyboardAndClearFocus()
+                                }
+                            } while (event.changes.any { it.pressed })
+                        }
+                    }
                     .verticalScroll(scrollState)
                     .padding(vertical = 4.dp)
             ) {
@@ -1337,20 +1484,10 @@ fun RiceEntryFormDialog(
     var ownerError by remember { mutableStateOf(false) }
     var isInputError by remember { mutableStateOf(false) }
 
-    val keyboardController = LocalSoftwareKeyboardController.current
-    val focusManager = LocalFocusManager.current
-    val scrollState = rememberScrollState()
-
-    LaunchedEffect(scrollState.isScrollInProgress) {
-        if (scrollState.isScrollInProgress) {
-            keyboardController?.hide()
-            focusManager.clearFocus()
-        }
-    }
+    var dismissKeyboardRef by remember { mutableStateOf<(() -> Unit)?>(null) }
 
     val safeDismiss = {
-        keyboardController?.hide()
-        focusManager.clearFocus()
+        dismissKeyboardRef?.invoke()
         onDismiss()
     }
 
@@ -1362,26 +1499,13 @@ fun RiceEntryFormDialog(
         shape = RoundedCornerShape(16.dp),
         modifier = Modifier
             .fillMaxWidth(0.95f)
+            .heightIn(max = 580.dp)
             .padding(vertical = 12.dp)
             .imePadding()
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null
-            ) {
-                keyboardController?.hide()
-                focusManager.clearFocus()
-            }
             .testTag("rice_entry_form_dialog"),
         title = {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .pointerInput(Unit) {
-                        detectTapGestures(onTap = {
-                            keyboardController?.hide()
-                            focusManager.clearFocus()
-                        })
-                    },
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -1410,10 +1534,7 @@ fun RiceEntryFormDialog(
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(
-                        onClick = {
-                            keyboardController?.hide()
-                            focusManager.clearFocus()
-                        },
+                        onClick = { dismissKeyboardRef?.invoke() },
                         modifier = Modifier.size(28.dp)
                     ) {
                         Icon(
@@ -1436,209 +1557,326 @@ fun RiceEntryFormDialog(
             }
         },
         text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(scrollState)
-                    .pointerInput(Unit) {
-                        detectTapGestures(onTap = {
-                            keyboardController?.hide()
-                            focusManager.clearFocus()
-                        })
+            val focusManager = LocalFocusManager.current
+            val keyboardController = LocalSoftwareKeyboardController.current
+            val dialogView = LocalView.current
+            val context = LocalContext.current
+            val imm = remember { context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager }
+            val dummyFocusRequester = remember { FocusRequester() }
+
+            val hideKeyboardAndClearFocus: () -> Unit = {
+                try {
+                    dummyFocusRequester.requestFocus()
+                } catch (_: Exception) {}
+                focusManager.clearFocus(force = true)
+                keyboardController?.hide()
+                try {
+                    imm?.hideSoftInputFromWindow(dialogView.windowToken, 0)
+                } catch (_: Exception) {}
+            }
+
+            LaunchedEffect(Unit) {
+                dismissKeyboardRef = hideKeyboardAndClearFocus
+            }
+
+            val scrollState = rememberScrollState()
+
+            // Tự động xóa focus và ẩn bàn phím số ngay lập tức khi cuộn form
+            LaunchedEffect(scrollState.isScrollInProgress, scrollState.value) {
+                if (scrollState.isScrollInProgress) {
+                    hideKeyboardAndClearFocus()
+                }
+            }
+
+            val nestedScrollConnection = remember {
+                object : NestedScrollConnection {
+                    override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                        if (kotlin.math.abs(available.y) > 0.5f) {
+                            hideKeyboardAndClearFocus()
+                        }
+                        return Offset.Zero
                     }
-                    .padding(vertical = 4.dp)
-            ) {
-                // SECTION 1: KHUNG CHỌN LOẠI LÚA VÀ CHỦ LÚA (BẮT BUỘC)
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp),
-                    color = Color(0xFFF9FCF9),
-                    border = BorderStroke(1.5.dp, RiceGreenPrimary)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(10.dp)
-                    ) {
-                        // 1. LOẠI LÚA
-                        Text(
-                            text = "Loại lúa:",
-                            fontSize = 12.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = RiceGreenDark
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        FlowRow(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            verticalArrangement = Arrangement.spacedBy(3.dp)
-                        ) {
-                            AVAILABLE_RICE_VARIETIES.forEach { variety ->
-                                val isSelected = selectedVariety == variety
-                                FilterChip(
-                                    selected = isSelected,
-                                    onClick = {
-                                        keyboardController?.hide()
-                                        focusManager.clearFocus()
-                                        selectedVariety = variety
-                                    },
-                                    label = {
-                                        Text(
-                                            text = variety,
-                                            fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
-                                            fontSize = 11.5.sp,
-                                            color = if (isSelected) PureWhite else SlateTextPrimary
-                                        )
-                                    },
-                                    shape = RoundedCornerShape(6.dp),
-                                    border = BorderStroke(
-                                        width = if (isSelected) 1.5.dp else 1.dp,
-                                        color = if (isSelected) RiceGreenDark else Color(0xFF86EFAC)
-                                    ),
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = RiceGreenPrimary,
-                                        containerColor = PureWhite
-                                    ),
-                                    modifier = Modifier.height(28.dp)
-                                )
-                            }
-                        }
 
-                        Spacer(modifier = Modifier.height(10.dp))
-                        HorizontalDivider(color = Color(0xFFDCFCE7), thickness = 1.dp)
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // 2. CHỦ LÚA (BẮT BUỘC)
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Chủ lúa (Bắt buộc):",
-                                fontSize = 12.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (ownerError) MaterialTheme.colorScheme.error else RiceGreenDark
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "*",
-                                color = Color(0xFFDC2626),
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp
-                            )
+                    override fun onPostScroll(
+                        consumed: Offset,
+                        available: Offset,
+                        source: NestedScrollSource
+                    ): Offset {
+                        if (kotlin.math.abs(consumed.y) > 0.5f || kotlin.math.abs(available.y) > 0.5f) {
+                            hideKeyboardAndClearFocus()
                         }
-
-                        if (ownerError) {
-                            Text(
-                                text = "⚠️ Vui lòng chọn Chủ lúa (bắt buộc)!",
-                                color = MaterialTheme.colorScheme.error,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.padding(vertical = 2.dp)
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(4.dp))
-                        FlowRow(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            verticalArrangement = Arrangement.spacedBy(3.dp)
-                        ) {
-                            AVAILABLE_RICE_OWNERS.forEach { owner ->
-                                val isSelected = selectedOwner == owner
-                                FilterChip(
-                                    selected = isSelected,
-                                    onClick = {
-                                        keyboardController?.hide()
-                                        focusManager.clearFocus()
-                                        selectedOwner = owner
-                                        ownerError = false
-                                    },
-                                    label = {
-                                        Text(
-                                            text = owner,
-                                            fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
-                                            fontSize = 11.sp,
-                                            color = if (isSelected) Color(0xFF78350F) else SlateTextPrimary
-                                        )
-                                    },
-                                    shape = RoundedCornerShape(6.dp),
-                                    border = BorderStroke(
-                                        width = if (isSelected) 1.5.dp else 1.dp,
-                                        color = if (isSelected) RiceGreenPrimary else SlateBorder
-                                    ),
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = Color(0xFFFDE68A),
-                                        containerColor = PureWhite
-                                    ),
-                                    modifier = Modifier.height(28.dp)
-                                )
-                            }
-                        }
+                        return Offset.Zero
                     }
                 }
+            }
 
-                Spacer(modifier = Modifier.height(10.dp))
+            Box(modifier = Modifier.fillMaxWidth()) {
+                // Dummy focusable target to quickly revoke focus from any active TextField
+                Box(
+                    modifier = Modifier
+                        .size(0.dp)
+                        .focusRequester(dummyFocusRequester)
+                        .focusable()
+                )
 
-                // SECTION 2: NHẬP SỐ LƯỢNG (Bọc viền xanh lá)
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp),
-                    color = Color(0xFFF9FCF9),
-                    border = BorderStroke(1.5.dp, RiceGreenPrimary)
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .nestedScroll(nestedScrollConnection)
+                        .pointerInput(Unit) {
+                            awaitEachGesture {
+                                awaitFirstDown(pass = PointerEventPass.Initial, requireUnconsumed = false)
+                                do {
+                                    val event = awaitPointerEvent(pass = PointerEventPass.Initial)
+                                    val moved = event.changes.any { change ->
+                                        val diff = change.position - change.previousPosition
+                                        kotlin.math.abs(diff.y) > 0.5f || kotlin.math.abs(diff.x) > 0.5f
+                                    }
+                                    if (moved) {
+                                        hideKeyboardAndClearFocus()
+                                    }
+                                } while (event.changes.any { it.pressed })
+                            }
+                        }
+                        .verticalScroll(scrollState)
+                        .padding(vertical = 4.dp)
                 ) {
-                    Column(
+                    // Hướng dẫn & Thanh trạng thái 4 trường thông tin
+                    Surface(
+                        color = Color(0xFFF1F5F9),
+                        shape = RoundedCornerShape(8.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(10.dp)
+                            .padding(bottom = 8.dp)
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(24.dp)
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(RiceGreenLight),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Numbers,
-                                    contentDescription = "Biểu tượng int",
-                                    tint = RiceGreenPrimary,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(6.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
                             Text(
-                                text = "Số lượng cho dòng này (kiểu int):",
-                                fontWeight = FontWeight.Bold,
+                                text = "Cuộn xuống để nhập Số ký & Giá lúa:",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = SlateTextSecondary
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Surface(
+                                    color = if (weightKgText.isNotBlank()) Color(0xFFDBEAFE) else Color(0xFFE2E8F0),
+                                    shape = RoundedCornerShape(4.dp)
+                                ) {
+                                    Text(
+                                        text = if (weightKgText.isNotBlank()) "Số ký: ${weightKgText}kg" else "Số ký: Trống",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (weightKgText.isNotBlank()) Color(0xFF1D4ED8) else Color(0xFF64748B),
+                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                    )
+                                }
+                                Surface(
+                                    color = if (priceText.isNotBlank()) Color(0xFFD1FAE5) else Color(0xFFE2E8F0),
+                                    shape = RoundedCornerShape(4.dp)
+                                ) {
+                                    Text(
+                                        text = if (priceText.isNotBlank()) "Giá: ${priceText}đ" else "Giá: Trống",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (priceText.isNotBlank()) Color(0xFF065F46) else Color(0xFF64748B),
+                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // SECTION 1: KHUNG CHỌN LOẠI LÚA VÀ CHỦ LÚA (BẮT BUỘC)
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFFF9FCF9),
+                        border = BorderStroke(1.5.dp, RiceGreenPrimary)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(10.dp)
+                        ) {
+                            // 1. LOẠI LÚA
+                            Text(
+                                text = "Loại lúa:",
                                 fontSize = 12.5.sp,
+                                fontWeight = FontWeight.Bold,
                                 color = RiceGreenDark
                             )
-                        }
-
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        OutlinedTextField(
-                            value = quantityText,
-                            onValueChange = { input ->
-                                val filtered = input.filter { it.isDigit() }
-                                quantityText = filtered
-                                isInputError = filtered.isEmpty()
-                            },
-                            isError = isInputError,
-                            supportingText = {
-                                if (isInputError) {
-                                    Text("Vui lòng nhập số nguyên hợp lệ (int > 0)")
+                            Spacer(modifier = Modifier.height(4.dp))
+                            FlowRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalArrangement = Arrangement.spacedBy(3.dp)
+                            ) {
+                                AVAILABLE_RICE_VARIETIES.forEach { variety ->
+                                    val isSelected = selectedVariety == variety
+                                    FilterChip(
+                                        selected = isSelected,
+                                        onClick = {
+                                            selectedVariety = variety
+                                        },
+                                        label = {
+                                            Text(
+                                                text = variety,
+                                                fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
+                                                fontSize = 11.5.sp,
+                                                color = if (isSelected) PureWhite else SlateTextPrimary
+                                            )
+                                        },
+                                        shape = RoundedCornerShape(6.dp),
+                                        border = BorderStroke(
+                                            width = if (isSelected) 1.5.dp else 1.dp,
+                                            color = if (isSelected) RiceGreenDark else Color(0xFF86EFAC)
+                                        ),
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = RiceGreenPrimary,
+                                            containerColor = PureWhite
+                                        ),
+                                        modifier = Modifier.height(28.dp)
+                                    )
                                 }
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.Tag,
-                                    contentDescription = "Biểu tượng int",
-                                    tint = if (isInputError) MaterialTheme.colorScheme.error else RiceGreenPrimary
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+                            HorizontalDivider(color = Color(0xFFDCFCE7), thickness = 1.dp)
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // 2. CHỦ LÚA (BẮT BUỘC)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Chủ lúa (Bắt buộc):",
+                                    fontSize = 12.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (ownerError) MaterialTheme.colorScheme.error else RiceGreenDark
                                 )
-                            },
-                            trailingIcon = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "*",
+                                    color = Color(0xFFDC2626),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp
+                                )
+                            }
+
+                            if (ownerError) {
+                                Text(
+                                    text = "⚠️ Vui lòng chọn Chủ lúa (bắt buộc)!",
+                                    color = MaterialTheme.colorScheme.error,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.padding(vertical = 2.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(4.dp))
+                            FlowRow(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalArrangement = Arrangement.spacedBy(3.dp)
+                            ) {
+                                AVAILABLE_RICE_OWNERS.forEach { owner ->
+                                    val isSelected = selectedOwner == owner
+                                    FilterChip(
+                                        selected = isSelected,
+                                        onClick = {
+                                            selectedOwner = owner
+                                            ownerError = false
+                                        },
+                                        label = {
+                                            Text(
+                                                text = owner,
+                                                fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
+                                                fontSize = 11.sp,
+                                                color = if (isSelected) Color(0xFF78350F) else SlateTextPrimary
+                                            )
+                                        },
+                                        shape = RoundedCornerShape(6.dp),
+                                        border = BorderStroke(
+                                            width = if (isSelected) 1.5.dp else 1.dp,
+                                            color = if (isSelected) RiceGreenPrimary else SlateBorder
+                                        ),
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = Color(0xFFFDE68A),
+                                            containerColor = PureWhite
+                                        ),
+                                        modifier = Modifier.height(28.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // SECTION 2: NHẬP SỐ LƯỢNG (Bọc viền xanh lá)
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFFF9FCF9),
+                        border = BorderStroke(1.5.dp, RiceGreenPrimary)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(10.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(24.dp)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(RiceGreenLight),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Numbers,
+                                        contentDescription = "Biểu tượng int",
+                                        tint = RiceGreenPrimary,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Số lượng cho dòng này (kiểu int):",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.5.sp,
+                                    color = RiceGreenDark
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            OutlinedTextField(
+                                value = quantityText,
+                                onValueChange = { input ->
+                                    val filtered = input.filter { it.isDigit() }
+                                    quantityText = filtered
+                                    isInputError = filtered.isEmpty()
+                                },
+                                isError = isInputError,
+                                supportingText = {
+                                    if (isInputError) {
+                                        Text("Vui lòng nhập số nguyên hợp lệ (int > 0)")
+                                    }
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Tag,
+                                        contentDescription = "Biểu tượng int",
+                                        tint = if (isInputError) MaterialTheme.colorScheme.error else RiceGreenPrimary
+                                    )
+                                },
+                                trailingIcon = {
                                     if (quantityText.isNotEmpty()) {
                                         IconButton(
                                             onClick = { quantityText = "" },
@@ -1652,174 +1890,155 @@ fun RiceEntryFormDialog(
                                             )
                                         }
                                     }
-                                    IconButton(
+                                },
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Number,
+                                    imeAction = ImeAction.Next
+                                ),
+                                keyboardActions = KeyboardActions(
+                                    onNext = {
+                                        focusManager.moveFocus(FocusDirection.Down)
+                                    }
+                                ),
+                                singleLine = true,
+                                textStyle = LocalTextStyle.current.copy(
+                                    color = Color.Black,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("quantity_input"),
+                                shape = RoundedCornerShape(8.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = Color.Black,
+                                    unfocusedTextColor = Color.Black,
+                                    cursorColor = Color.Black,
+                                    focusedBorderColor = RiceGreenDark,
+                                    unfocusedBorderColor = RiceGreenPrimary,
+                                    focusedLabelColor = RiceGreenPrimary,
+                                    focusedContainerColor = PureWhite,
+                                    unfocusedContainerColor = PureWhite
+                                )
+                            )
+
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            // Nút chỉnh số nhanh: -10, -1, +1, +10
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                listOf(-10, -1, 1, 10).forEach { delta ->
+                                    OutlinedButton(
                                         onClick = {
-                                            keyboardController?.hide()
-                                            focusManager.clearFocus()
+                                            val current = quantityText.toIntOrNull() ?: 0
+                                            val newVal = (current + delta).coerceAtLeast(1)
+                                            quantityText = newVal.toString()
+                                            isInputError = false
                                         },
-                                        modifier = Modifier.size(24.dp)
+                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(30.dp),
+                                        shape = RoundedCornerShape(6.dp),
+                                        border = BorderStroke(1.dp, RiceGreenPrimary.copy(alpha = 0.6f)),
+                                        colors = ButtonDefaults.outlinedButtonColors(
+                                            containerColor = PureWhite
+                                        )
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Check,
-                                            contentDescription = "Ẩn bàn phím",
-                                            tint = RiceGreenPrimary,
-                                            modifier = Modifier.size(18.dp)
+                                        Text(
+                                            text = if (delta > 0) "+$delta" else "$delta",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.Black
                                         )
                                     }
-                                }
-                            },
-                            keyboardOptions = KeyboardOptions(
-                                keyboardType = KeyboardType.Number,
-                                imeAction = ImeAction.Done
-                            ),
-                            keyboardActions = KeyboardActions(
-                                onDone = {
-                                    keyboardController?.hide()
-                                    focusManager.clearFocus()
-                                }
-                            ),
-                            singleLine = true,
-                            textStyle = LocalTextStyle.current.copy(
-                                color = Color.Black,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("quantity_input"),
-                            shape = RoundedCornerShape(8.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color.Black,
-                                unfocusedTextColor = Color.Black,
-                                cursorColor = Color.Black,
-                                focusedBorderColor = RiceGreenDark,
-                                unfocusedBorderColor = RiceGreenPrimary,
-                                focusedLabelColor = RiceGreenPrimary,
-                                focusedContainerColor = PureWhite,
-                                unfocusedContainerColor = PureWhite
-                            )
-                        )
-
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        // Nút chỉnh số nhanh: -10, -1, +1, +10
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            listOf(-10, -1, 1, 10).forEach { delta ->
-                                OutlinedButton(
-                                    onClick = {
-                                        keyboardController?.hide()
-                                        focusManager.clearFocus()
-                                        val current = quantityText.toIntOrNull() ?: 0
-                                        val newVal = (current + delta).coerceAtLeast(1)
-                                        quantityText = newVal.toString()
-                                        isInputError = false
-                                    },
-                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(30.dp),
-                                    shape = RoundedCornerShape(6.dp),
-                                    border = BorderStroke(1.dp, RiceGreenPrimary.copy(alpha = 0.6f)),
-                                    colors = ButtonDefaults.outlinedButtonColors(
-                                        containerColor = PureWhite
-                                    )
-                                ) {
-                                    Text(
-                                        text = if (delta > 0) "+$delta" else "$delta",
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.Black
-                                    )
                                 }
                             }
                         }
                     }
-                }
 
-                Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
-                // SECTION 3: NHẬP SỐ KÝ (Bọc viền xanh dương)
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp),
-                    color = Color(0xFFF8FAFC),
-                    border = BorderStroke(1.5.dp, Color(0xFF3B82F6))
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(10.dp)
+                    // SECTION 3: NHẬP SỐ KÝ (Bọc viền xanh dương)
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFFF8FAFC),
+                        border = BorderStroke(1.5.dp, Color(0xFF3B82F6))
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier.fillMaxWidth()
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(10.dp)
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(24.dp)
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(Color(0xFFDBEAFE)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Scale,
-                                        contentDescription = "Biểu tượng số ký",
-                                        tint = Color(0xFF1D4ED8),
-                                        modifier = Modifier.size(16.dp)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(Color(0xFFDBEAFE)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Scale,
+                                            contentDescription = "Biểu tượng số ký",
+                                            tint = Color(0xFF1D4ED8),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "Số ký (kg):",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.5.sp,
+                                        color = Color(0xFF1E40AF)
                                     )
                                 }
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "Số ký (kg):",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 12.5.sp,
-                                    color = Color(0xFF1E40AF)
-                                )
-                            }
-                            if (weightKgText.isNotBlank()) {
-                                val wVal = weightKgText.toIntOrNull()
-                                if (wVal != null && wVal > 0) {
-                                    Surface(
-                                        color = Color(0xFFDBEAFE),
-                                        shape = RoundedCornerShape(4.dp)
-                                    ) {
-                                        Text(
-                                            text = "${java.text.NumberFormat.getInstance(java.util.Locale("vi", "VN")).format(wVal)} kg",
-                                            fontWeight = FontWeight.ExtraBold,
-                                            fontSize = 11.5.sp,
-                                            color = Color(0xFF1E40AF),
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                        )
+                                if (weightKgText.isNotBlank()) {
+                                    val wVal = weightKgText.toIntOrNull()
+                                    if (wVal != null && wVal > 0) {
+                                        Surface(
+                                            color = Color(0xFFDBEAFE),
+                                            shape = RoundedCornerShape(4.dp)
+                                        ) {
+                                            Text(
+                                                text = "${java.text.NumberFormat.getInstance(java.util.Locale("vi", "VN")).format(wVal)} kg",
+                                                fontWeight = FontWeight.ExtraBold,
+                                                fontSize = 11.5.sp,
+                                                color = Color(0xFF1E40AF),
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
                                     }
                                 }
                             }
-                        }
 
-                        Spacer(modifier = Modifier.height(6.dp))
+                            Spacer(modifier = Modifier.height(6.dp))
 
-                        OutlinedTextField(
-                            value = weightKgText,
-                            onValueChange = { input ->
-                                weightKgText = input.filter { it.isDigit() }
-                            },
-                            placeholder = {
-                                Text("Nhập số ký (ví dụ: 1200)", fontSize = 13.sp, color = SlateTextSecondary)
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.Scale,
-                                    contentDescription = "Số ký lúa",
-                                    tint = Color(0xFF2563EB)
-                                )
-                            },
-                            trailingIcon = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                            OutlinedTextField(
+                                value = weightKgText,
+                                onValueChange = { input ->
+                                    weightKgText = input.filter { it.isDigit() }
+                                },
+                                placeholder = {
+                                    Text("Nhập số ký (ví dụ: 1200)", fontSize = 13.sp, color = SlateTextSecondary)
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Scale,
+                                        contentDescription = "Số ký lúa",
+                                        tint = Color(0xFF2563EB)
+                                    )
+                                },
+                                trailingIcon = {
                                     if (weightKgText.isNotEmpty()) {
                                         IconButton(
                                             onClick = { weightKgText = "" },
@@ -1833,173 +2052,154 @@ fun RiceEntryFormDialog(
                                             )
                                         }
                                     }
-                                    IconButton(
+                                },
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Number,
+                                    imeAction = ImeAction.Next
+                                ),
+                                keyboardActions = KeyboardActions(
+                                    onNext = {
+                                        focusManager.moveFocus(FocusDirection.Down)
+                                    }
+                                ),
+                                singleLine = true,
+                                textStyle = LocalTextStyle.current.copy(
+                                    color = Color.Black,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("weight_kg_input"),
+                                shape = RoundedCornerShape(8.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = Color.Black,
+                                    unfocusedTextColor = Color.Black,
+                                    cursorColor = Color.Black,
+                                    focusedBorderColor = Color(0xFF1D4ED8),
+                                    unfocusedBorderColor = Color(0xFF3B82F6),
+                                    focusedLabelColor = Color(0xFF1D4ED8),
+                                    focusedContainerColor = PureWhite,
+                                    unfocusedContainerColor = PureWhite
+                                )
+                            )
+
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            // Nút chỉnh số ký nhanh: +50, +100, +500, +1000
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                listOf(50, 100, 500, 1000).forEach { delta ->
+                                    OutlinedButton(
                                         onClick = {
-                                            keyboardController?.hide()
-                                            focusManager.clearFocus()
+                                            val current = weightKgText.toIntOrNull() ?: 0
+                                            val newVal = (current + delta).coerceAtLeast(0)
+                                            weightKgText = newVal.toString()
                                         },
-                                        modifier = Modifier.size(24.dp)
+                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(30.dp),
+                                        shape = RoundedCornerShape(6.dp),
+                                        border = BorderStroke(1.dp, Color(0xFF3B82F6).copy(alpha = 0.5f)),
+                                        colors = ButtonDefaults.outlinedButtonColors(
+                                            containerColor = PureWhite
+                                        )
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Check,
-                                            contentDescription = "Ẩn bàn phím",
-                                            tint = Color(0xFF2563EB),
-                                            modifier = Modifier.size(18.dp)
+                                        Text(
+                                            text = "+$delta",
+                                            fontSize = 10.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF1D4ED8)
                                         )
                                     }
-                                }
-                            },
-                            keyboardOptions = KeyboardOptions(
-                                keyboardType = KeyboardType.Number,
-                                imeAction = ImeAction.Done
-                            ),
-                            keyboardActions = KeyboardActions(
-                                onDone = {
-                                    keyboardController?.hide()
-                                    focusManager.clearFocus()
-                                }
-                            ),
-                            singleLine = true,
-                            textStyle = LocalTextStyle.current.copy(
-                                color = Color.Black,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("weight_kg_input"),
-                            shape = RoundedCornerShape(8.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color.Black,
-                                unfocusedTextColor = Color.Black,
-                                cursorColor = Color.Black,
-                                focusedBorderColor = Color(0xFF1D4ED8),
-                                unfocusedBorderColor = Color(0xFF3B82F6),
-                                focusedLabelColor = Color(0xFF1D4ED8),
-                                focusedContainerColor = PureWhite,
-                                unfocusedContainerColor = PureWhite
-                            )
-                        )
-
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        // Nút chỉnh số ký nhanh: +50, +100, +500, +1000
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            listOf(50, 100, 500, 1000).forEach { delta ->
-                                OutlinedButton(
-                                    onClick = {
-                                        keyboardController?.hide()
-                                        focusManager.clearFocus()
-                                        val current = weightKgText.toIntOrNull() ?: 0
-                                        val newVal = (current + delta).coerceAtLeast(0)
-                                        weightKgText = newVal.toString()
-                                    },
-                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(30.dp),
-                                    shape = RoundedCornerShape(6.dp),
-                                    border = BorderStroke(1.dp, Color(0xFF3B82F6).copy(alpha = 0.5f)),
-                                    colors = ButtonDefaults.outlinedButtonColors(
-                                        containerColor = PureWhite
-                                    )
-                                ) {
-                                    Text(
-                                        text = "+$delta",
-                                        fontSize = 10.5.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF1D4ED8)
-                                    )
                                 }
                             }
                         }
                     }
-                }
 
-                Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
-                // SECTION 4: NHẬP GIÁ LÚA (Bọc viền xanh lục/ngọc)
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp),
-                    color = Color(0xFFF9FCF9),
-                    border = BorderStroke(1.5.dp, Color(0xFF059669))
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(10.dp)
+                    // SECTION 4: NHẬP GIÁ LÚA (Bọc viền xanh lục/ngọc)
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFFF9FCF9),
+                        border = BorderStroke(1.5.dp, Color(0xFF059669))
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier.fillMaxWidth()
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(10.dp)
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(24.dp)
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(Color(0xFFD1FAE5)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Payments,
-                                        contentDescription = "Biểu tượng giá lúa",
-                                        tint = Color(0xFF047857),
-                                        modifier = Modifier.size(16.dp)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(Color(0xFFD1FAE5)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Payments,
+                                            contentDescription = "Biểu tượng giá lúa",
+                                            tint = Color(0xFF047857),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "Giá lúa (VNĐ):",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 12.5.sp,
+                                        color = Color(0xFF065F46)
                                     )
                                 }
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "Giá lúa (VNĐ):",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 12.5.sp,
-                                    color = Color(0xFF065F46)
-                                )
-                            }
-                            if (priceText.isNotBlank()) {
-                                val pVal = priceText.toIntOrNull()
-                                if (pVal != null && pVal > 0) {
-                                    Surface(
-                                        color = Color(0xFFD1FAE5),
-                                        shape = RoundedCornerShape(4.dp)
-                                    ) {
-                                        Text(
-                                            text = "${java.text.NumberFormat.getInstance(java.util.Locale("vi", "VN")).format(pVal)} đ",
-                                            fontWeight = FontWeight.ExtraBold,
-                                            fontSize = 11.5.sp,
-                                            color = Color(0xFF065F46),
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                        )
+                                if (priceText.isNotBlank()) {
+                                    val pVal = priceText.toIntOrNull()
+                                    if (pVal != null && pVal > 0) {
+                                        Surface(
+                                            color = Color(0xFFD1FAE5),
+                                            shape = RoundedCornerShape(4.dp)
+                                        ) {
+                                            Text(
+                                                text = "${java.text.NumberFormat.getInstance(java.util.Locale("vi", "VN")).format(pVal)} đ",
+                                                fontWeight = FontWeight.ExtraBold,
+                                                fontSize = 11.5.sp,
+                                                color = Color(0xFF065F46),
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                            )
+                                        }
                                     }
                                 }
                             }
-                        }
 
-                        Spacer(modifier = Modifier.height(6.dp))
+                            Spacer(modifier = Modifier.height(6.dp))
 
-                        OutlinedTextField(
-                            value = priceText,
-                            onValueChange = { input ->
-                                priceText = input.filter { it.isDigit() }
-                            },
-                            placeholder = {
-                                Text("Nhập giá lúa (ví dụ: 8200)", fontSize = 13.sp, color = SlateTextSecondary)
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Default.Payments,
-                                    contentDescription = "Giá lúa",
-                                    tint = Color(0xFF059669)
-                                )
-                            },
-                            trailingIcon = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                            OutlinedTextField(
+                                value = priceText,
+                                onValueChange = { input ->
+                                    priceText = input.filter { it.isDigit() }
+                                },
+                                placeholder = {
+                                    Text("Nhập giá lúa (ví dụ: 8200)", fontSize = 13.sp, color = SlateTextSecondary)
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Payments,
+                                        contentDescription = "Giá lúa",
+                                        tint = Color(0xFF059669)
+                                    )
+                                },
+                                trailingIcon = {
                                     if (priceText.isNotEmpty()) {
                                         IconButton(
                                             onClick = { priceText = "" },
@@ -2013,88 +2213,72 @@ fun RiceEntryFormDialog(
                                             )
                                         }
                                     }
-                                    IconButton(
-                                        onClick = {
-                                            keyboardController?.hide()
-                                            focusManager.clearFocus()
-                                        },
-                                        modifier = Modifier.size(24.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Check,
-                                            contentDescription = "Ẩn bàn phím",
-                                            tint = Color(0xFF059669),
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-                                }
-                            },
-                            keyboardOptions = KeyboardOptions(
-                                keyboardType = KeyboardType.Number,
-                                imeAction = ImeAction.Done
-                            ),
-                            keyboardActions = KeyboardActions(
-                                onDone = {
-                                    keyboardController?.hide()
-                                    focusManager.clearFocus()
-                                }
-                            ),
-                            singleLine = true,
-                            textStyle = LocalTextStyle.current.copy(
-                                color = Color.Black,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("price_input"),
-                            shape = RoundedCornerShape(8.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = Color.Black,
-                                unfocusedTextColor = Color.Black,
-                                cursorColor = Color.Black,
-                                focusedBorderColor = Color(0xFF047857),
-                                unfocusedBorderColor = Color(0xFF059669),
-                                focusedLabelColor = Color(0xFF047857),
-                                focusedContainerColor = PureWhite,
-                                unfocusedContainerColor = PureWhite
-                            )
-                        )
-
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        // Nút chọn giá nhanh phổ biến: 7.500, 8.000, 8.500, 9.000
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            listOf(7500, 8000, 8500, 9000).forEach { presetPrice ->
-                                OutlinedButton(
-                                    onClick = {
+                                },
+                                keyboardOptions = KeyboardOptions(
+                                    keyboardType = KeyboardType.Number,
+                                    imeAction = ImeAction.Done
+                                ),
+                                keyboardActions = KeyboardActions(
+                                    onDone = {
                                         keyboardController?.hide()
                                         focusManager.clearFocus()
-                                        priceText = presetPrice.toString()
-                                    },
-                                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(30.dp),
-                                    shape = RoundedCornerShape(6.dp),
-                                    border = BorderStroke(
-                                        1.dp,
-                                        if (priceText == presetPrice.toString()) Color(0xFF047857) else Color(0xFF059669).copy(alpha = 0.5f)
-                                    ),
-                                    colors = ButtonDefaults.outlinedButtonColors(
-                                        containerColor = if (priceText == presetPrice.toString()) Color(0xFFD1FAE5) else PureWhite
-                                    )
-                                ) {
-                                    Text(
-                                        text = "${presetPrice / 1000}k${if (presetPrice % 1000 != 0) (presetPrice % 1000) / 100 else ""}",
-                                        fontSize = 10.5.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF065F46)
-                                    )
+                                    }
+                                ),
+                                singleLine = true,
+                                textStyle = LocalTextStyle.current.copy(
+                                    color = Color.Black,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("price_input"),
+                                shape = RoundedCornerShape(8.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = Color.Black,
+                                    unfocusedTextColor = Color.Black,
+                                    cursorColor = Color.Black,
+                                    focusedBorderColor = Color(0xFF047857),
+                                    unfocusedBorderColor = Color(0xFF059669),
+                                    focusedLabelColor = Color(0xFF047857),
+                                    focusedContainerColor = PureWhite,
+                                    unfocusedContainerColor = PureWhite
+                                )
+                            )
+
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            // Nút chọn giá nhanh phổ biến: 7.500, 8.000, 8.500, 9.000
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                listOf(7500, 8000, 8500, 9000).forEach { presetPrice ->
+                                    OutlinedButton(
+                                        onClick = {
+                                            priceText = presetPrice.toString()
+                                        },
+                                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(30.dp),
+                                        shape = RoundedCornerShape(6.dp),
+                                        border = BorderStroke(
+                                            1.dp,
+                                            if (priceText == presetPrice.toString()) Color(0xFF047857) else Color(0xFF059669).copy(alpha = 0.5f)
+                                        ),
+                                        colors = ButtonDefaults.outlinedButtonColors(
+                                            containerColor = if (priceText == presetPrice.toString()) Color(0xFFD1FAE5) else PureWhite
+                                        )
+                                    ) {
+                                        Text(
+                                            text = "${presetPrice / 1000}k${if (presetPrice % 1000 != 0) (presetPrice % 1000) / 100 else ""}",
+                                            fontSize = 10.5.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF065F46)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -2105,8 +2289,7 @@ fun RiceEntryFormDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    keyboardController?.hide()
-                    focusManager.clearFocus()
+                    dismissKeyboardRef?.invoke()
                     if (selectedOwner.isBlank()) {
                         ownerError = true
                         return@Button
